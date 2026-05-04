@@ -760,6 +760,17 @@ tr:last-child td {
   gap: 12px;
 }
 
+.template-prompt-hint {
+  margin: -2px 0 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.template-prompt-hint strong {
+  color: var(--ink);
+}
+
 .import-preview {
   display: grid;
   gap: 12px;

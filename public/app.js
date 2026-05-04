@@ -776,6 +776,10 @@ function renderQuestionManager(snapshot) {
           <a class="link-button ghost" href="${escapeHtml(templateHref("json", snapshot))}" download>Download JSON template</a>
           <input id="file-import" type="file" accept=".json,.csv,text/csv,application/json" data-action="import-file" ${snapshot.status === "active" ? "disabled" : ""} hidden />
         </div>
+        <p class="template-prompt-hint">
+          <strong>AI formatting hint:</strong> Paste your questions into ChatGPT with:
+          "Convert these questions to CSV with headers ${escapeHtml(placeholder)}. Keep one question per row, put the correct answer letter in correctAnswer, and keep explanations in explanation."
+        </p>
         ${renderImportPreview()}
       </div>
       <div class="question-list">
