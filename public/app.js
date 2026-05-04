@@ -555,9 +555,6 @@ function renderProfessorHeader(snapshot) {
 }
 
 function renderControls(snapshot) {
-  const baseUrl = (snapshot.publicBaseUrl || location.origin).replace(/\/+$/, "");
-  const studentUrl = `${baseUrl}/?examCode=${encodeURIComponent(snapshot.sessionCode)}#/student`;
-  const qrUrl = `/api/qr?data=${encodeURIComponent(studentUrl)}`;
   const selectedChoiceCount = Number(snapshot.choiceCount) || 4;
   const answeredTotal = snapshot.participants.reduce((sum, student) => sum + (Number(student.answeredCount) || 0), 0);
   const possibleAnswers = Math.max(1, snapshot.participants.length * Math.max(1, snapshot.questionCount));
@@ -568,16 +565,6 @@ function renderControls(snapshot) {
       <div class="panel-header">
         <h2>Session control</h2>
         ${statusPill(snapshot.status)}
-      </div>
-      <div class="qr-share top-qr">
-        <img src="${escapeHtml(qrUrl)}" alt="QR code for student exam link" />
-        <div>
-          <h3>Student QR</h3>
-          <p class="muted small">Show this QR code to students. It opens the student side with exam code ${escapeHtml(snapshot.sessionCode)}.</p>
-          <div class="button-row">
-            <button class="ghost" type="button" data-action="copy-link" data-link="${escapeHtml(studentUrl)}">Copy student link</button>
-          </div>
-        </div>
       </div>
       <div class="metrics-grid">
         <div class="metric">
@@ -679,6 +666,31 @@ function renderControls(snapshot) {
   `;
 }
 
+function renderStudentShare(snapshot) {
+  const baseUrl = (snapshot.publicBaseUrl || location.origin).replace(/\/+$/, "");
+  const studentUrl = `${baseUrl}/?examCode=${encodeURIComponent(snapshot.sessionCode)}#/student`;
+  const qrUrl = `/api/qr?data=${encodeURIComponent(studentUrl)}`;
+
+  return `
+    <div class="panel">
+      <div class="panel-header">
+        <h2>Student QR</h2>
+        <span class="status-pill">${escapeHtml(snapshot.sessionCode)}</span>
+      </div>
+      <div class="qr-share">
+        <img src="${escapeHtml(qrUrl)}" alt="QR code for student exam link" />
+        <div>
+          <h3>Share exam room</h3>
+          <p class="muted small">Show this QR code to students. It opens the student side with exam code ${escapeHtml(snapshot.sessionCode)}.</p>
+          <div class="button-row">
+            <button class="ghost" type="button" data-action="copy-link" data-link="${escapeHtml(studentUrl)}">Copy student link</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function renderImportPreview() {
   const preview = professorStore.importPreview;
   if (!preview) {
@@ -731,39 +743,10 @@ function renderQuestionManager(snapshot) {
   return `
     <div class="panel">
       <div class="panel-header">
-        <h2>Questions</h2>
+        <h2>Question import</h2>
         <span class="status-pill">${snapshot.questionCount} items</span>
       </div>
-      <form data-action="add-question" class="field-grid">
-        <label class="field full">
-          <span>Question text</span>
-          <textarea name="question" required></textarea>
-        </label>
-        ${keys
-          .map(
-            (key) => `
-              <label class="field">
-                <span>Option ${key}</span>
-                <input name="${key}" required />
-              </label>
-            `
-          )
-          .join("")}
-        <label class="field">
-          <span>Correct answer</span>
-          <select name="correctAnswer">
-            ${keys.map((key) => `<option>${key}</option>`).join("")}
-          </select>
-        </label>
-        <label class="field">
-          <span>Explanation optional</span>
-          <input name="explanation" />
-        </label>
-        <div class="field full button-row">
-          <button class="primary" type="submit" ${snapshot.status === "active" ? "disabled" : ""}>Add question</button>
-        </div>
-      </form>
-      <div class="import-box" style="margin-top: 18px">
+      <div class="import-box">
         <label class="field">
           <span>Paste JSON or CSV</span>
           <textarea name="importText" data-import-text placeholder="${escapeHtml(placeholder)}">${escapeHtml(professorStore.pendingImportText)}</textarea>
@@ -798,7 +781,7 @@ function renderQuestionManager(snapshot) {
             `
                 )
                 .join("")
-            : `<div class="empty-state">No questions loaded yet. Upload a CSV/JSON file or add questions manually.</div>`
+            : `<div class="empty-state">No questions loaded yet. Upload a CSV/JSON file or paste AI-formatted questions.</div>`
         }
       </div>
     </div>
@@ -1022,6 +1005,7 @@ function renderProfessor() {
       </div>
       <div class="stack">
         ${renderAnalytics(snapshot)}
+        ${postExam ? "" : renderStudentShare(snapshot)}
         ${postExam ? renderProfessorQuestionReview(snapshot) : renderQuestionManager(snapshot)}
       </div>
     </section>
@@ -1194,16 +1178,6 @@ async function professorAction(path, body = {}, options = {}) {
     professorStore.error = error.message;
   }
   render();
-}
-
-function questionFromForm(form) {
-  const keys = answerKeys(professorStore.snapshot?.choiceCount);
-  return {
-    question: form.question.value,
-    ...Object.fromEntries(keys.map((key) => [key, form.elements[key].value])),
-    correctAnswer: form.correctAnswer.value,
-    explanation: form.explanation.value,
-  };
 }
 
 function parseCsv(text) {
@@ -1445,10 +1419,6 @@ app.addEventListener("submit", async (event) => {
     });
   }
 
-  if (action === "add-question") {
-    const questions = [...professorStore.snapshot.questions, questionFromForm(form)];
-    await professorAction("/api/professor/questions", { questions });
-  }
 });
 
 app.addEventListener("click", async (event) => {

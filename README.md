@@ -37,7 +37,7 @@ PUBLIC_BASE_URL=https://your-tunnel.trycloudflare.com npm start
 
 1. Open the professor dashboard.
 2. Set the duration and confirm the exam code.
-3. Add questions manually, or import JSON/CSV.
+3. Import JSON/CSV questions from the template or an AI-formatted export.
 4. Preview imported questions before replacing the exam set.
 5. Share the QR code, student link, and exam code.
 6. Students join with nicknames only.

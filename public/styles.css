@@ -896,7 +896,6 @@ tr:last-child td {
   grid-template-columns: 1fr;
   gap: 14px;
   justify-items: center;
-  margin-top: 18px;
   padding: 16px;
   border: 1px solid var(--line);
   background: var(--soft);
@@ -918,10 +917,6 @@ tr:last-child td {
 
 .qr-share .button-row {
   justify-content: center;
-}
-
-.top-qr {
-  margin-bottom: 16px;
 }
 
 .review-list {
