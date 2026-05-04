@@ -760,8 +760,8 @@ function renderQuestionManager(snapshot) {
           <input id="file-import" type="file" accept=".json,.csv,text/csv,application/json" data-action="import-file" ${snapshot.status === "active" ? "disabled" : ""} hidden />
         </div>
         <p class="template-prompt-hint">
-          <strong>AI formatting hint:</strong> Paste your questions into ChatGPT with:
-          "Convert these questions to CSV with headers ${escapeHtml(placeholder)}. Keep one question per row, put the correct answer letter in correctAnswer, and keep explanations in explanation."
+          <strong>AI formatting hint:</strong> Download the CSV template, then give the template and your mock questions file to an AI tool with:
+          "The first file is my mock questions. Give me them back as the attached template CSV."
         </p>
         ${renderImportPreview()}
       </div>

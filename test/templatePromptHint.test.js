@@ -7,6 +7,8 @@ test("professor import area includes an AI prompt hint for CSV template conversi
   const appJs = fs.readFileSync(path.join(__dirname, "../public/app.js"), "utf8");
 
   assert.match(appJs, /AI formatting hint/);
-  assert.match(appJs, /Convert these questions to CSV/);
+  assert.match(appJs, /Download the CSV template/);
+  assert.match(appJs, /mock questions file/);
+  assert.match(appJs, /attached template CSV/);
   assert.match(appJs, /Download CSV template/);
 });
