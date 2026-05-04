@@ -1,0 +1,21 @@
+{
+  "name": "cau-medical-mock-exam-portal",
+  "version": "1.0.0",
+  "description": "A simple CAU Medical School mock MCQ exam portal for classroom practice.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  },
+  "keywords": [
+    "cau",
+    "medical",
+    "mock-exam",
+    "mcq"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "qrcode": "^1.5.4"
+  }
+}
