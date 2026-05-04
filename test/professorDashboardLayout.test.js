@@ -31,3 +31,13 @@ test("professor can delete the full imported question set at once", () => {
   assert.match(appJs, /questions: \[\]/);
   assert.match(appJs, /All questions deleted/);
 });
+
+test("session professor passcode is hidden until toggled", () => {
+  const appJs = fs.readFileSync(path.join(__dirname, "../public/app.js"), "utf8");
+
+  assert.match(appJs, /showSessionPasscode: false/);
+  assert.match(appJs, /data-action="toggle-session-passcode"/);
+  assert.match(appJs, /aria-label="\$\{professorStore\.showSessionPasscode \? "Hide session passcode" : "Show session passcode"\}"/);
+  assert.match(appJs, /professorStore\.showSessionPasscode \? escapeHtml\(snapshot\.professorPasscode \|\| "Not set"\) : "\*\*\*\*\*\*\*\*"/);
+  assert.match(appJs, /eye-icon/);
+});

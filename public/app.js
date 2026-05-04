@@ -21,6 +21,7 @@ const professorStore = {
   pendingImportText: "",
   previewedImportText: "",
   pendingImportQuestions: null,
+  showSessionPasscode: false,
   error: "",
   message: "",
 };
@@ -598,7 +599,18 @@ function renderControls(snapshot) {
         <div class="control-line">
           <div>
             <span class="field-label">Session professor passcode</span>
-            <strong>${escapeHtml(snapshot.professorPasscode || "Not set")}</strong>
+            <div class="passcode-row">
+              <strong>${professorStore.showSessionPasscode ? escapeHtml(snapshot.professorPasscode || "Not set") : "********"}</strong>
+              <button
+                class="ghost icon-button passcode-toggle"
+                type="button"
+                data-action="toggle-session-passcode"
+                aria-label="${professorStore.showSessionPasscode ? "Hide session passcode" : "Show session passcode"}"
+                title="${professorStore.showSessionPasscode ? "Hide session passcode" : "Show session passcode"}"
+              >
+                <span class="eye-icon ${professorStore.showSessionPasscode ? "visible" : ""}" aria-hidden="true"></span>
+              </button>
+            </div>
           </div>
           <button class="ghost" type="button" data-action="regenerate-passcode">Regenerate</button>
         </div>
@@ -1491,6 +1503,11 @@ app.addEventListener("click", async (event) => {
         { useReturnedPasscode: true, message: "Session passcode regenerated." }
       );
     }
+  }
+
+  if (action === "toggle-session-passcode") {
+    professorStore.showSessionPasscode = !professorStore.showSessionPasscode;
+    render();
   }
 
   if (action === "toggle-explanations") {

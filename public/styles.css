@@ -673,6 +673,48 @@ button:disabled {
   overflow-wrap: anywhere;
 }
 
+.passcode-row {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.passcode-row strong {
+  margin-top: 0;
+}
+
+.icon-button {
+  display: inline-grid;
+  width: 38px;
+  min-width: 38px;
+  height: 38px;
+  min-height: 38px;
+  place-items: center;
+  padding: 0;
+}
+
+.eye-icon {
+  position: relative;
+  display: block;
+  width: 18px;
+  height: 12px;
+  border: 2px solid currentColor;
+  border-radius: 50% / 60%;
+}
+
+.eye-icon::after {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  content: "";
+  transform: translate(-50%, -50%);
+}
+
 .session-chip {
   min-height: 36px;
   border-color: var(--line);
