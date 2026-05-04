@@ -763,10 +763,13 @@ async function handleApi(req, res, url) {
       return;
     }
 
+    const questions = Array.isArray(body.questions) && body.questions.length === 0
+      ? []
+      : validateQuestions(body.questions);
     const shouldClearParticipants = exam.status === "ended";
     const nextExam = {
       ...exam,
-      questions: validateQuestions(body.questions),
+      questions,
       participants: shouldClearParticipants ? [] : exam.participants,
       status: "waiting",
       startedAt: null,

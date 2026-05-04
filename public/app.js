@@ -14,7 +14,7 @@ const studentStore = {
 
 const professorStore = {
   passcode: localStorage.getItem("cau.professorPasscode") || "",
-  sessionCode: localStorage.getItem("cau.professorSessionCode") || "",
+  sessionCode: "",
   authenticated: sessionStorage.getItem("cau.professorAuthenticated") === "true",
   snapshot: null,
   importPreview: null,

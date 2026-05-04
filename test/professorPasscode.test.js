@@ -5,7 +5,7 @@ const { test } = require("node:test");
 
 const handleRequest = require("../server");
 
-function requestJson({ method = "GET", url, headers = {} }) {
+function requestJson({ method = "GET", url, headers = {}, body }) {
   const req = {
     method,
     url,
@@ -13,6 +13,16 @@ function requestJson({ method = "GET", url, headers = {} }) {
       host: "localhost",
       ...headers,
     },
+    on(event, callback) {
+      if (event === "data" && body !== undefined) {
+        callback(Buffer.from(JSON.stringify(body)));
+      }
+      if (event === "end") {
+        callback();
+      }
+      return this;
+    },
+    destroy() {},
   };
 
   return new Promise((resolve) => {
@@ -53,4 +63,21 @@ test("professor login bundle does not reveal the passcode", () => {
 
   assert.doesNotMatch(appJs, /CAU-PROF/);
   assert.doesNotMatch(appJs, /default passcode/i);
+});
+
+test("professor can clear all questions through the questions endpoint", async () => {
+  const response = await requestJson({
+    method: "POST",
+    url: "/api/professor/questions",
+    headers: {
+      "x-professor-passcode": "CAU-PROF",
+    },
+    body: {
+      questions: [],
+    },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.body.questionCount, 0);
+  assert.deepEqual(response.body.questions, []);
 });
