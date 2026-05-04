@@ -754,6 +754,7 @@ function renderQuestionManager(snapshot) {
         <div class="button-row">
           <button class="secondary" type="button" data-action="preview-import" ${snapshot.status === "active" ? "disabled" : ""}>Preview import</button>
           <button class="primary" type="button" data-action="import-previewed" ${snapshot.status === "active" || !professorStore.importPreview?.valid ? "disabled" : ""}>Import previewed</button>
+          <button class="danger" type="button" data-action="clear-questions" ${snapshot.status === "active" || snapshot.questionCount === 0 ? "disabled" : ""}>Delete all questions</button>
           <label class="link-button secondary" for="file-import">Upload and import file</label>
           <a class="link-button ghost" href="${escapeHtml(templateHref("csv", snapshot))}" download>Download CSV template</a>
           <a class="link-button ghost" href="${escapeHtml(templateHref("json", snapshot))}" download>Download JSON template</a>
@@ -1543,6 +1544,18 @@ app.addEventListener("click", async (event) => {
     const index = Number(target.dataset.index);
     const questions = professorStore.snapshot.questions.filter((_, itemIndex) => itemIndex !== index);
     await professorAction("/api/professor/questions", { questions });
+  }
+
+  if (action === "clear-questions") {
+    const confirmed = window.confirm("Delete all imported questions?");
+    if (confirmed) {
+      professorStore.importPreview = null;
+      await professorAction(
+        "/api/professor/questions",
+        { questions: [] },
+        { message: "All questions deleted." }
+      );
+    }
   }
 
   if (action === "copy-link") {

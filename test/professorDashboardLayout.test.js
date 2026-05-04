@@ -21,3 +21,13 @@ test("student QR share is a right-column professor panel", () => {
   assert.match(appJs, /Student QR/);
   assert.doesNotMatch(appJs, /top-qr/);
 });
+
+test("professor can delete the full imported question set at once", () => {
+  const appJs = fs.readFileSync(path.join(__dirname, "../public/app.js"), "utf8");
+
+  assert.match(appJs, /data-action="clear-questions"/);
+  assert.match(appJs, /Delete all questions/);
+  assert.match(appJs, /snapshot\.questionCount === 0/);
+  assert.match(appJs, /questions: \[\]/);
+  assert.match(appJs, /All questions deleted/);
+});
