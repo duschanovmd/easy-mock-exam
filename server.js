@@ -40,12 +40,14 @@ const {
 } = require("./src/sessionStore");
 
 const PORT = Number(process.env.PORT || 3000);
-const PROFESSOR_PASSCODE = process.env.PROFESSOR_PASSCODE || "CAU-MED";
+const PROFESSOR_PASSCODE = process.env.PROFESSOR_PASSCODE || "CAU-PROF";
 const PUBLIC_BASE_URL = cleanPublicBaseUrl(process.env.PUBLIC_BASE_URL);
 const ROOT = __dirname;
 const PUBLIC_DIR = path.join(ROOT, "public");
-const DATA_DIR = path.join(ROOT, "data");
-const DATA_FILE = path.join(DATA_DIR, "exam-state.json");
+const DATA_DIR =
+  process.env.DATA_DIR ||
+  (process.env.VERCEL ? path.join("/tmp", "cau-mock-exam-portal") : path.join(ROOT, "data"));
+const DATA_FILE = process.env.DATA_FILE || path.join(DATA_DIR, "exam-state.json");
 const MAX_BODY_BYTES = 1_000_000;
 
 const clients = new Set();
@@ -916,7 +918,7 @@ function handleEvents(req, res, url) {
   req.on("close", () => clients.delete(client));
 }
 
-const server = http.createServer(async (req, res) => {
+async function handleRequest(req, res) {
   const url = new URL(req.url, `http://${req.headers.host}`);
 
   try {
@@ -935,31 +937,52 @@ const server = http.createServer(async (req, res) => {
     console.error(error);
     sendJson(res, error.statusCode || 500, { error: error.message || "Server error" });
   }
-});
+}
 
-setInterval(() => {
-  let changed = false;
-  let hasActive = false;
-  const sessions = { ...state.sessions };
+const server = http.createServer(handleRequest);
+let autoEndTimer = null;
 
-  for (const [code, exam] of Object.entries(state.sessions)) {
-    const freshExam = finishIfTimeElapsed(exam);
-    sessions[code] = freshExam;
-    changed = changed || freshExam !== exam;
-    hasActive = hasActive || freshExam.status === "active";
+function startAutoEndTimer() {
+  if (autoEndTimer) {
+    return;
   }
 
-  if (changed) {
-    state = { ...state, sessions };
-    persistState();
-  }
+  autoEndTimer = setInterval(() => {
+    let changed = false;
+    let hasActive = false;
+    const sessions = { ...state.sessions };
 
-  if (changed || hasActive) {
-    broadcast();
-  }
-}, 1000);
+    for (const [code, exam] of Object.entries(state.sessions)) {
+      const freshExam = finishIfTimeElapsed(exam);
+      sessions[code] = freshExam;
+      changed = changed || freshExam !== exam;
+      hasActive = hasActive || freshExam.status === "active";
+    }
 
-server.listen(PORT, () => {
-  console.log(`CAU Mock Exam Portal running at http://localhost:${PORT}`);
-  console.log(`Professor passcode: ${PROFESSOR_PASSCODE}`);
-});
+    if (changed) {
+      state = { ...state, sessions };
+      persistState();
+    }
+
+    if (changed || hasActive) {
+      broadcast();
+    }
+  }, 1000);
+
+  if (typeof autoEndTimer.unref === "function") {
+    autoEndTimer.unref();
+  }
+}
+
+startAutoEndTimer();
+
+if (require.main === module && !process.env.VERCEL) {
+  server.listen(PORT, () => {
+    console.log(`CAU Mock Exam Portal running at http://localhost:${PORT}`);
+    console.log(`Professor passcode: ${PROFESSOR_PASSCODE}`);
+  });
+}
+
+module.exports = handleRequest;
+module.exports.handleRequest = handleRequest;
+module.exports.server = server;

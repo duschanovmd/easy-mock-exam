@@ -531,8 +531,8 @@ function professorLogin() {
         ${messageHtml(professorStore.error, "error")}
       </form>
       <aside class="panel tight">
-        <h2>Default</h2>
-        <p class="muted">For this prototype the default passcode is <strong>CAU-MED</strong>, unless changed with the PROFESSOR_PASSCODE environment variable.</p>
+        <h2>Private access</h2>
+        <p class="muted">Use the professor access code shared for this classroom session.</p>
       </aside>
     </section>
   `;

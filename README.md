@@ -18,7 +18,7 @@ Open:
 Default professor passcode:
 
 ```text
-CAU-MED
+CAU-PROF
 ```
 
 To change it:
