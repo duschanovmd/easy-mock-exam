@@ -54,7 +54,7 @@ If a student refreshes or accidentally closes the page, they can re-enter the sa
 
 Multiple mock exams can run at the same time. Each professor session has its own exam code, and students must enter the correct code to join that specific room. The copied student link includes the exam code for convenience.
 
-Each exam session also has its own professor passcode shown in the dashboard. The global prototype passcode can still open the dashboard, but regenerating the session passcode gives that room a cleaner private control code. Old ended sessions can be cleared from the professor dashboard without deleting the currently selected session.
+Each exam session also has its own professor passcode in the dashboard, hidden by default and revealable with the eye button. The global prototype passcode can still open the dashboard, but regenerating the session passcode gives that room a cleaner private control code. Old ended sessions can be cleared from the professor dashboard without deleting the currently selected session.
 
 Professor controls per student:
 
