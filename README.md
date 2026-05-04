@@ -1,6 +1,6 @@
 # CAU Mock Exam Portal
 
-A simple classroom mock MCQ testing portal for Central Asian University Medical School.
+A simple classroom mock MCQ testing portal for Central Asian University.
 
 This is a practice prototype, not an official secure exam platform. Students enter only a nickname. No real names, IDs, emails, or other identity fields are collected.
 

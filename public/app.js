@@ -241,7 +241,7 @@ function studentShell(content, timer = "") {
   return `
     <section class="hero-band">
       <div>
-        <p class="eyebrow">CAU Medical School</p>
+        <p class="eyebrow">Central Asian University</p>
         <h1>Mock exam room</h1>
         <p class="lede">Nickname-only practice testing for live classroom sessions.</p>
       </div>
