@@ -62,6 +62,17 @@ test("silent professor polling does not re-render while editing a form field", (
   assert.match(loadProfessorState, /return;/);
 });
 
+test("professor import textarea edits are kept in draft state after preview", () => {
+  const appJs = fs.readFileSync(path.join(__dirname, "../public/app.js"), "utf8");
+
+  assert.match(appJs, /function syncImportTextDraft\(text\)/);
+  assert.match(appJs, /professorStore\.pendingImportText = text/);
+  assert.match(appJs, /professorStore\.importPreview = null/);
+  assert.match(appJs, /app\.addEventListener\("input"/);
+  assert.match(appJs, /target\.matches\("\[data-import-text\]"\)/);
+  assert.match(appJs, /syncImportTextDraft\(target\.value\)/);
+});
+
 test("session professor passcode is hidden until toggled", () => {
   const appJs = fs.readFileSync(path.join(__dirname, "../public/app.js"), "utf8");
 

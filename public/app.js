@@ -1323,6 +1323,22 @@ function parseQuestions(text) {
   return parseCsv(trimmed);
 }
 
+function syncImportTextDraft(text) {
+  if (text === professorStore.pendingImportText) {
+    return;
+  }
+
+  professorStore.pendingImportText = text;
+  professorStore.error = "";
+  professorStore.message = "";
+
+  if (text !== professorStore.previewedImportText) {
+    professorStore.importPreview = null;
+    professorStore.previewedImportText = "";
+    professorStore.pendingImportQuestions = null;
+  }
+}
+
 async function importQuestions(text) {
   professorStore.error = "";
   professorStore.message = "";
@@ -1502,6 +1518,13 @@ app.addEventListener("submit", async (event) => {
     });
   }
 
+});
+
+app.addEventListener("input", (event) => {
+  const target = event.target;
+  if (target.matches("[data-import-text]")) {
+    syncImportTextDraft(target.value);
+  }
 });
 
 app.addEventListener("click", async (event) => {
