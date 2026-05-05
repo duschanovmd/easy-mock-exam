@@ -32,6 +32,16 @@ test("professor can delete the full imported question set at once", () => {
   assert.match(appJs, /All questions deleted/);
 });
 
+test("professor file upload uses a stable input outside the polling-rendered dashboard", () => {
+  const appJs = fs.readFileSync(path.join(__dirname, "../public/app.js"), "utf8");
+  const questionManager = appJs.match(/function renderQuestionManager\(snapshot\) \{[\s\S]*?\n\}/)?.[0] || "";
+
+  assert.match(appJs, /const fileImportInput = document\.createElement\("input"\)/);
+  assert.match(appJs, /fileImportInput\.addEventListener\("change"/);
+  assert.match(appJs, /data-action="choose-import-file"/);
+  assert.doesNotMatch(questionManager, /type="file"/);
+});
+
 test("session professor passcode is hidden until toggled", () => {
   const appJs = fs.readFileSync(path.join(__dirname, "../public/app.js"), "utf8");
 

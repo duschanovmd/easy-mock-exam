@@ -1,5 +1,11 @@
 const app = document.querySelector("#app");
 const tabs = document.querySelectorAll("[data-route]");
+const fileImportInput = document.createElement("input");
+
+fileImportInput.type = "file";
+fileImportInput.accept = ".json,.csv,text/csv,application/json";
+fileImportInput.hidden = true;
+document.body.appendChild(fileImportInput);
 
 const studentStore = {
   id: localStorage.getItem("cau.studentId") || "",
@@ -803,10 +809,9 @@ function renderQuestionManager(snapshot) {
           <button class="secondary" type="button" data-action="preview-import" ${snapshot.status === "active" ? "disabled" : ""}>Preview import</button>
           <button class="primary" type="button" data-action="import-previewed" ${snapshot.status === "active" || !professorStore.importPreview?.valid ? "disabled" : ""}>Import previewed</button>
           <button class="danger" type="button" data-action="clear-questions" ${snapshot.status === "active" || snapshot.questionCount === 0 ? "disabled" : ""}>Delete all questions</button>
-          <label class="link-button secondary" for="file-import">Upload and import file</label>
+          <button class="secondary" type="button" data-action="choose-import-file" ${snapshot.status === "active" ? "disabled" : ""}>Upload and import file</button>
           <a class="link-button ghost" href="${escapeHtml(templateHref("csv", snapshot))}" download>Download CSV template</a>
           <a class="link-button ghost" href="${escapeHtml(templateHref("json", snapshot))}" download>Download JSON template</a>
-          <input id="file-import" type="file" accept=".json,.csv,text/csv,application/json" data-action="import-file" ${snapshot.status === "active" ? "disabled" : ""} hidden />
         </div>
         <p class="template-prompt-hint">
           <strong>AI formatting hint:</strong> Download the CSV template, then give the template and your mock questions file to an AI tool with:
@@ -1629,17 +1634,29 @@ app.addEventListener("click", async (event) => {
     const textarea = app.querySelector("[data-import-text]");
     await importPreviewed(textarea.value);
   }
+
+  if (action === "choose-import-file") {
+    fileImportInput.value = "";
+    fileImportInput.click();
+  }
 });
 
-app.addEventListener("change", async (event) => {
-  const input = event.target;
-  if (input.dataset.action !== "import-file" || !input.files?.[0]) {
+fileImportInput.addEventListener("change", async () => {
+  const file = fileImportInput.files?.[0];
+  if (!file) {
     return;
   }
 
-  const text = await input.files[0].text();
-  professorStore.pendingImportText = text;
-  await importUploadedFile(text);
+  try {
+    const text = await file.text();
+    professorStore.pendingImportText = text;
+    await importUploadedFile(text);
+  } catch (error) {
+    professorStore.error = error.message;
+    render();
+  } finally {
+    fileImportInput.value = "";
+  }
 });
 
 window.addEventListener("hashchange", bootRoute);
