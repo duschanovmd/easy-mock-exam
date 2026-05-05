@@ -31,13 +31,13 @@ const {
   cleanSessionCode,
   clearEndedSessions,
   createNewSession,
-  createStore,
   findSessionByStudentId,
   generateProfessorPasscode,
   getSession,
   renameSession,
   setSession,
 } = require("./src/sessionStore");
+const { createStateStorage } = require("./src/stateStorage");
 
 const PORT = Number(process.env.PORT || 3000);
 const PROFESSOR_PASSCODE = process.env.PROFESSOR_PASSCODE || "CAU-PROF";
@@ -50,8 +50,9 @@ const DATA_DIR =
 const DATA_FILE = process.env.DATA_FILE || path.join(DATA_DIR, "exam-state.json");
 const MAX_BODY_BYTES = 1_000_000;
 
+const storage = createStateStorage({ dataDir: DATA_DIR, dataFile: DATA_FILE });
 const clients = new Set();
-let state = loadState();
+let state = null;
 
 function nowIso() {
   return new Date().toISOString();
@@ -62,22 +63,13 @@ function cleanPublicBaseUrl(value = "") {
   return /^https?:\/\//i.test(baseUrl) ? baseUrl : "";
 }
 
-function loadState() {
-  try {
-    if (!fs.existsSync(DATA_FILE)) {
-      return createStore();
-    }
-
-    return createStore(JSON.parse(fs.readFileSync(DATA_FILE, "utf8")));
-  } catch (error) {
-    console.error("Could not load saved exam state, starting fresh:", error.message);
-    return createStore();
-  }
+async function reloadState() {
+  state = await storage.load();
+  return state;
 }
 
-function persistState() {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-  fs.writeFileSync(DATA_FILE, JSON.stringify(state, null, 2));
+async function persistState() {
+  await storage.save(state);
 }
 
 function secondsRemaining(exam) {
@@ -94,6 +86,13 @@ function submittedParticipants(exam) {
 
 function resultsReady(exam) {
   return exam.status === "ended";
+}
+
+function storageSnapshot() {
+  return {
+    mode: storage.mode,
+    durable: Boolean(storage.durable),
+  };
 }
 
 function endExam(exam, reason = "manual") {
@@ -132,20 +131,20 @@ function finishIfTimeElapsed(exam) {
   return exam;
 }
 
-function saveExam(exam, options = {}) {
+async function saveExam(exam, options = {}) {
   state = setSession(state, exam, { makeActive: Boolean(options.makeActive) });
   if (options.persist !== false) {
-    persistState();
+    await persistState();
   }
   if (options.broadcast !== false) {
-    broadcast();
+    await broadcast();
   }
 }
 
-function refreshExam(exam) {
+async function refreshExam(exam) {
   const refreshed = finishIfTimeElapsed(exam);
   if (refreshed !== exam) {
-    saveExam(refreshed, { broadcast: false });
+    await saveExam(refreshed, { broadcast: false });
   }
   return refreshed;
 }
@@ -181,8 +180,8 @@ function professorSessionCode(req, url, body = {}) {
   );
 }
 
-function studentSnapshot(exam, studentId) {
-  const freshExam = refreshExam(exam);
+async function studentSnapshot(exam, studentId) {
+  const freshExam = await refreshExam(exam);
   const participant = freshExam.participants.find((student) => student.id === studentId);
   const shouldSendQuestions =
     freshExam.status === "active" && participant && participant.status !== "submitted";
@@ -227,8 +226,8 @@ function studentSnapshot(exam, studentId) {
   };
 }
 
-function professorSnapshot(exam) {
-  const freshExam = refreshExam(exam);
+async function professorSnapshot(exam) {
+  const freshExam = await refreshExam(exam);
   const participants = freshExam.participants.map((participant) => ({
     id: participant.id,
     nickname: participant.nickname,
@@ -250,6 +249,7 @@ function professorSnapshot(exam) {
     choiceCount: freshExam.choiceCount,
     professorPasscode: freshExam.professorPasscode,
     showExplanations: freshExam.showExplanations !== false,
+    storage: storageSnapshot(),
     startedAt: freshExam.startedAt,
     endsAt: freshExam.endsAt,
     endedAt: freshExam.endedAt,
@@ -265,7 +265,9 @@ function professorSnapshot(exam) {
   };
 }
 
-function snapshotFor(client) {
+async function snapshotFor(client) {
+  await reloadState();
+
   if (client.role === "professor") {
     const exam = getSession(state, client.sessionCode) || getSession(state, state.activeSessionCode);
     return professorSnapshot(exam);
@@ -275,14 +277,14 @@ function snapshotFor(client) {
   return studentSnapshot(exam, client.studentId);
 }
 
-function sendEvent(client) {
+async function sendEvent(client) {
   client.res.write("event: state\n");
-  client.res.write(`data: ${JSON.stringify(snapshotFor(client))}\n\n`);
+  client.res.write(`data: ${JSON.stringify(await snapshotFor(client))}\n\n`);
 }
 
-function broadcast() {
+async function broadcast() {
   for (const client of clients) {
-    sendEvent(client);
+    await sendEvent(client);
   }
 }
 
@@ -375,6 +377,7 @@ async function handleApi(req, res, url) {
       status: activeExam.status,
       activeSessionCode: state.activeSessionCode,
       sessionCount: Object.keys(state.sessions).length,
+      storage: storageSnapshot(),
     });
     return;
   }
@@ -420,7 +423,7 @@ async function handleApi(req, res, url) {
       sendJson(res, 404, { error: "Exam session was not found." });
       return;
     }
-    sendJson(res, 200, studentSnapshot(exam, url.searchParams.get("studentId")));
+    sendJson(res, 200, await studentSnapshot(exam, url.searchParams.get("studentId")));
     return;
   }
 
@@ -440,7 +443,7 @@ async function handleApi(req, res, url) {
       return;
     }
 
-    const freshExam = refreshExam(exam);
+    const freshExam = await refreshExam(exam);
     if (!canStudentJoinExam(freshExam)) {
       sendJson(res, 400, { error: "This exam has ended. Ask the professor for a new exam code." });
       return;
@@ -454,7 +457,7 @@ async function handleApi(req, res, url) {
         studentId: existingParticipant.id,
         sessionCode: freshExam.sessionCode,
         reconnected: true,
-        snapshot: studentSnapshot(freshExam, existingParticipant.id),
+        snapshot: await studentSnapshot(freshExam, existingParticipant.id),
       });
       return;
     }
@@ -474,11 +477,11 @@ async function handleApi(req, res, url) {
       ...freshExam,
       participants: [...freshExam.participants, participant],
     };
-    saveExam(nextExam, { makeActive: false });
+    await saveExam(nextExam, { makeActive: false });
     sendJson(res, 200, {
       studentId: participant.id,
       sessionCode: nextExam.sessionCode,
-      snapshot: studentSnapshot(nextExam, participant.id),
+      snapshot: await studentSnapshot(nextExam, participant.id),
     });
     return;
   }
@@ -493,10 +496,10 @@ async function handleApi(req, res, url) {
       return;
     }
 
-    const freshExam = refreshExam(exam);
+    const freshExam = await refreshExam(exam);
     const freshParticipant = freshExam.participants.find((student) => student.id === body.studentId);
     if (freshExam.status !== "active" || freshParticipant.status === "submitted") {
-      sendJson(res, 200, { snapshot: studentSnapshot(freshExam, freshParticipant.id) });
+      sendJson(res, 200, { snapshot: await studentSnapshot(freshExam, freshParticipant.id) });
       return;
     }
 
@@ -508,8 +511,8 @@ async function handleApi(req, res, url) {
           : student
       ),
     };
-    saveExam(nextExam, { makeActive: false });
-    sendJson(res, 200, { snapshot: studentSnapshot(nextExam, freshParticipant.id) });
+    await saveExam(nextExam, { makeActive: false });
+    sendJson(res, 200, { snapshot: await studentSnapshot(nextExam, freshParticipant.id) });
     return;
   }
 
@@ -520,7 +523,7 @@ async function handleApi(req, res, url) {
       sendJson(res, 200, {
         removed: false,
         keptResult: false,
-        snapshot: studentSnapshot(getSession(state, state.activeSessionCode), null),
+        snapshot: await studentSnapshot(getSession(state, state.activeSessionCode), null),
       });
       return;
     }
@@ -531,11 +534,11 @@ async function handleApi(req, res, url) {
       participants: result.participants,
     };
 
-    saveExam(nextExam, { makeActive: false });
+    await saveExam(nextExam, { makeActive: false });
     sendJson(res, 200, {
       removed: result.removed,
       keptResult: result.keptResult,
-      snapshot: studentSnapshot(nextExam, null),
+      snapshot: await studentSnapshot(nextExam, null),
     });
     return;
   }
@@ -550,10 +553,10 @@ async function handleApi(req, res, url) {
       return;
     }
 
-    const freshExam = refreshExam(exam);
+    const freshExam = await refreshExam(exam);
     const freshParticipant = freshExam.participants.find((student) => student.id === body.studentId);
     if (freshParticipant.status === "submitted" && freshParticipant.result) {
-      sendJson(res, 200, { snapshot: studentSnapshot(freshExam, freshParticipant.id) });
+      sendJson(res, 200, { snapshot: await studentSnapshot(freshExam, freshParticipant.id) });
       return;
     }
 
@@ -580,8 +583,8 @@ async function handleApi(req, res, url) {
       }),
     };
 
-    saveExam(nextExam, { makeActive: false });
-    sendJson(res, 200, { snapshot: studentSnapshot(nextExam, freshParticipant.id) });
+    await saveExam(nextExam, { makeActive: false });
+    sendJson(res, 200, { snapshot: await studentSnapshot(nextExam, freshParticipant.id) });
     return;
   }
 
@@ -597,9 +600,9 @@ async function handleApi(req, res, url) {
     }
     if (exam.status !== "ended" && state.activeSessionCode !== exam.sessionCode) {
       state = setSession(state, exam, { makeActive: true });
-      persistState();
+      await persistState();
     }
-    sendJson(res, 200, professorSnapshot(exam));
+    sendJson(res, 200, await professorSnapshot(exam));
     return;
   }
 
@@ -611,7 +614,7 @@ async function handleApi(req, res, url) {
     }
 
     const filename = `cau-mock-exam-${exam.sessionCode}-results.csv`;
-    sendText(res, 200, buildResultsCsv(refreshExam(exam)), {
+    sendText(res, 200, buildResultsCsv(await refreshExam(exam)), {
       "Content-Type": "text/csv; charset=utf-8",
       "Content-Disposition": `attachment; filename="${filename}"`,
     });
@@ -635,8 +638,8 @@ async function handleApi(req, res, url) {
       ...exam,
       professorPasscode: generateProfessorPasscode(),
     };
-    saveExam(nextExam, { makeActive: true });
-    sendJson(res, 200, professorSnapshot(nextExam));
+    await saveExam(nextExam, { makeActive: true });
+    sendJson(res, 200, await professorSnapshot(nextExam));
     return;
   }
 
@@ -652,17 +655,17 @@ async function handleApi(req, res, url) {
       ...exam,
       showExplanations: Boolean(body.showExplanations),
     };
-    saveExam(nextExam, { makeActive: true });
-    sendJson(res, 200, professorSnapshot(nextExam));
+    await saveExam(nextExam, { makeActive: true });
+    sendJson(res, 200, await professorSnapshot(nextExam));
     return;
   }
 
   if (req.method === "POST" && url.pathname === "/api/professor/sessions/clear-ended") {
     const currentCode = professorSessionCode(req, url);
     state = clearEndedSessions(state, currentCode);
-    persistState();
-    broadcast();
-    sendJson(res, 200, professorSnapshot(getSession(state, currentCode) || getSession(state, state.activeSessionCode)));
+    await persistState();
+    await broadcast();
+    sendJson(res, 200, await professorSnapshot(getSession(state, currentCode) || getSession(state, state.activeSessionCode)));
     return;
   }
 
@@ -684,8 +687,8 @@ async function handleApi(req, res, url) {
       ...exam,
       participants: result.participants,
     };
-    saveExam(nextExam, { makeActive: true });
-    sendJson(res, 200, professorSnapshot(nextExam));
+    await saveExam(nextExam, { makeActive: true });
+    sendJson(res, 200, await professorSnapshot(nextExam));
     return;
   }
 
@@ -703,8 +706,8 @@ async function handleApi(req, res, url) {
       return;
     }
 
-    saveExam(result.exam, { makeActive: true });
-    sendJson(res, 200, professorSnapshot(result.exam));
+    await saveExam(result.exam, { makeActive: true });
+    sendJson(res, 200, await professorSnapshot(result.exam));
     return;
   }
 
@@ -745,8 +748,8 @@ async function handleApi(req, res, url) {
       templateQuestionCount: templateOptions.questionCount,
       choiceCount: templateOptions.choiceCount,
     };
-    saveExam(nextExam, { makeActive: true });
-    sendJson(res, 200, professorSnapshot(nextExam));
+    await saveExam(nextExam, { makeActive: true });
+    sendJson(res, 200, await professorSnapshot(nextExam));
     return;
   }
 
@@ -778,8 +781,8 @@ async function handleApi(req, res, url) {
       endReason: null,
     };
 
-    saveExam(nextExam, { makeActive: true });
-    sendJson(res, 200, professorSnapshot(nextExam));
+    await saveExam(nextExam, { makeActive: true });
+    sendJson(res, 200, await professorSnapshot(nextExam));
     return;
   }
 
@@ -791,7 +794,7 @@ async function handleApi(req, res, url) {
     }
 
     if (exam.status === "active") {
-      sendJson(res, 200, professorSnapshot(exam));
+      sendJson(res, 200, await professorSnapshot(exam));
       return;
     }
 
@@ -814,8 +817,8 @@ async function handleApi(req, res, url) {
       })),
     };
 
-    saveExam(nextExam, { makeActive: true });
-    sendJson(res, 200, professorSnapshot(nextExam));
+    await saveExam(nextExam, { makeActive: true });
+    sendJson(res, 200, await professorSnapshot(nextExam));
     return;
   }
 
@@ -827,8 +830,8 @@ async function handleApi(req, res, url) {
     }
 
     const nextExam = endExam(exam, "manual");
-    saveExam(nextExam, { makeActive: true });
-    sendJson(res, 200, professorSnapshot(nextExam));
+    await saveExam(nextExam, { makeActive: true });
+    sendJson(res, 200, await professorSnapshot(nextExam));
     return;
   }
 
@@ -847,9 +850,9 @@ async function handleApi(req, res, url) {
       choiceCount: exam.choiceCount,
       questions: clearQuestions ? [] : exam.questions,
     });
-    persistState();
-    broadcast();
-    sendJson(res, 200, professorSnapshot(getSession(state, state.activeSessionCode)));
+    await persistState();
+    await broadcast();
+    sendJson(res, 200, await professorSnapshot(getSession(state, state.activeSessionCode)));
     return;
   }
 
@@ -890,7 +893,7 @@ function serveStatic(req, res, url) {
   });
 }
 
-function handleEvents(req, res, url) {
+async function handleEvents(req, res, url) {
   const role = url.pathname === "/events/professor" ? "professor" : "student";
 
   if (role === "professor") {
@@ -917,7 +920,7 @@ function handleEvents(req, res, url) {
   });
 
   clients.add(client);
-  sendEvent(client);
+  await sendEvent(client);
   req.on("close", () => clients.delete(client));
 }
 
@@ -926,11 +929,13 @@ async function handleRequest(req, res) {
 
   try {
     if (url.pathname.startsWith("/events/")) {
-      handleEvents(req, res, url);
+      await reloadState();
+      await handleEvents(req, res, url);
       return;
     }
 
     if (url.pathname.startsWith("/api/")) {
+      await reloadState();
       await handleApi(req, res, url);
       return;
     }
@@ -950,7 +955,9 @@ function startAutoEndTimer() {
     return;
   }
 
-  autoEndTimer = setInterval(() => {
+  autoEndTimer = setInterval(async () => {
+    await reloadState();
+
     let changed = false;
     let hasActive = false;
     const sessions = { ...state.sessions };
@@ -964,11 +971,11 @@ function startAutoEndTimer() {
 
     if (changed) {
       state = { ...state, sessions };
-      persistState();
+      await persistState();
     }
 
     if (changed || hasActive) {
-      broadcast();
+      await broadcast();
     }
   }, 1000);
 

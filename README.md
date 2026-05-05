@@ -33,6 +33,17 @@ When using a public tunnel while keeping the professor dashboard open on localho
 PUBLIC_BASE_URL=https://your-tunnel.trycloudflare.com npm start
 ```
 
+## Vercel Storage
+
+Vercel serverless functions do not share local memory or `/tmp` files reliably between requests. For live classroom use on Vercel, connect an Upstash Redis database to the Vercel project so these environment variables are available:
+
+```text
+UPSTASH_REDIS_REST_URL
+UPSTASH_REDIS_REST_TOKEN
+```
+
+When those variables exist, exam sessions, uploaded questions, settings, participants, start/end state, answers, and results are saved in Redis and shared across Vercel function instances. Without Redis, the app falls back to local file storage for development, and the professor dashboard shows a warning on Vercel because saves can reset between requests.
+
 ## Classroom Use
 
 1. Open the professor dashboard.
@@ -107,7 +118,7 @@ JSON:
 
 ## Notes
 
-- Realtime synchronization uses server-sent events from the local Node server.
-- Exam state is saved in `data/exam-state.json`.
+- Browser synchronization uses short polling so Vercel function instances do not need to hold long-lived event streams.
+- Local exam state is saved in `data/exam-state.json`; Vercel classroom state should use Upstash Redis.
 - The professor passcode is a prototype gate, not production authentication.
 - For a classroom, run the server on the professor machine and share the machine's local network address with students.

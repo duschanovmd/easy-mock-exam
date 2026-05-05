@@ -37,7 +37,8 @@ if (initialParams.get("sessionCode")) {
   localStorage.setItem("cau.professorSessionCode", professorStore.sessionCode);
 }
 
-let stream = null;
+let syncTimer = null;
+let syncInFlight = false;
 let saveTimer = null;
 
 function route() {
@@ -123,10 +124,31 @@ function setActiveTab() {
 }
 
 function stopStream() {
-  if (stream) {
-    stream.close();
-    stream = null;
+  if (syncTimer) {
+    clearInterval(syncTimer);
+    syncTimer = null;
   }
+  syncInFlight = false;
+}
+
+function startPolling(callback) {
+  stopStream();
+
+  const tick = async () => {
+    if (syncInFlight) {
+      return;
+    }
+
+    syncInFlight = true;
+    try {
+      await callback();
+    } finally {
+      syncInFlight = false;
+    }
+  };
+
+  syncTimer = setInterval(tick, 1500);
+  tick();
 }
 
 function connectStudentStream() {
@@ -135,41 +157,19 @@ function connectStudentStream() {
     return;
   }
 
-  stopStream();
-  stream = new EventSource(
-    `/events/student?studentId=${encodeURIComponent(studentStore.id)}&sessionCode=${encodeURIComponent(studentStore.sessionCode)}`
-  );
-  stream.addEventListener("state", (event) => {
-    studentStore.snapshot = JSON.parse(event.data);
-    studentStore.answers = {
-      ...(studentStore.snapshot.student?.answers || {}),
-      ...studentStore.answers,
-    };
-    render();
-  });
+  startPolling(() => loadPublicState({ silent: true }));
 }
 
 function connectProfessorStream() {
-  if (!professorStore.passcode) {
+  if (!professorStore.passcode || !professorStore.authenticated) {
     stopStream();
     return;
   }
 
-  stopStream();
-  stream = new EventSource(
-    `/events/professor?passcode=${encodeURIComponent(professorStore.passcode)}&sessionCode=${encodeURIComponent(professorStore.sessionCode)}`
-  );
-  stream.addEventListener("state", (event) => {
-    professorStore.snapshot = JSON.parse(event.data);
-    render();
-  });
-  stream.onerror = () => {
-    professorStore.error = "Professor stream disconnected. Check the passcode and refresh.";
-    render();
-  };
+  startPolling(() => loadProfessorState({ connect: false, silent: true }));
 }
 
-async function loadPublicState() {
+async function loadPublicState(options = {}) {
   try {
     const params = new URLSearchParams();
     if (studentStore.id) {
@@ -180,15 +180,31 @@ async function loadPublicState() {
     }
     const data = await request(`/api/public?${params.toString()}`);
     studentStore.snapshot = data;
+    if (data.student) {
+      studentStore.answers = {
+        ...(data.student.answers || {}),
+        ...studentStore.answers,
+      };
+    }
+    if (!options.silent) {
+      studentStore.error = "";
+    }
   } catch (error) {
-    studentStore.error = error.message;
+    if (!options.silent || !studentStore.snapshot) {
+      studentStore.error = error.message;
+    }
   }
-  render();
+
+  if (options.render !== false) {
+    render();
+  }
 }
 
-async function loadProfessorState() {
+async function loadProfessorState(options = {}) {
   if (!professorStore.passcode || !professorStore.authenticated) {
-    render();
+    if (options.render !== false) {
+      render();
+    }
     return;
   }
 
@@ -202,15 +218,24 @@ async function loadProfessorState() {
     professorStore.error = "";
     localStorage.setItem("cau.professorPasscode", professorStore.passcode);
     localStorage.setItem("cau.professorSessionCode", professorStore.sessionCode);
-    connectProfessorStream();
+    if (options.connect !== false) {
+      connectProfessorStream();
+    }
   } catch (error) {
-    professorStore.error = error.message;
-    professorStore.snapshot = null;
-    professorStore.authenticated = false;
-    sessionStorage.removeItem("cau.professorAuthenticated");
-    localStorage.removeItem("cau.professorPasscode");
+    if (!options.silent || !professorStore.snapshot) {
+      professorStore.error = error.message;
+    }
+    if (!options.silent) {
+      professorStore.snapshot = null;
+      professorStore.authenticated = false;
+      sessionStorage.removeItem("cau.professorAuthenticated");
+      localStorage.removeItem("cau.professorPasscode");
+    }
   }
-  render();
+
+  if (options.render !== false) {
+    render();
+  }
 }
 
 function bootRoute() {
@@ -567,6 +592,11 @@ function renderControls(snapshot) {
         <h2>Session control</h2>
         ${statusPill(snapshot.status)}
       </div>
+      ${
+        snapshot.storage?.durable === false
+          ? `<div class="message error">Vercel persistent storage is not connected. Saves may reset until Upstash Redis is added to the project.</div>`
+          : ""
+      }
       <div class="metrics-grid">
         <div class="metric">
           <span>Code</span>

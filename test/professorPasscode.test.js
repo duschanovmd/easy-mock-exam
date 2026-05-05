@@ -1,7 +1,11 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 const { test } = require("node:test");
+
+const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "cau-professor-passcode-"));
+process.env.DATA_FILE = path.join(tempDir, "exam-state.json");
 
 const handleRequest = require("../server");
 
