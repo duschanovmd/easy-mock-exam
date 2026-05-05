@@ -42,6 +42,16 @@ test("professor file upload uses a stable input outside the polling-rendered das
   assert.doesNotMatch(questionManager, /type="file"/);
 });
 
+test("professor import controls are disabled when Vercel storage is missing", () => {
+  const appJs = fs.readFileSync(path.join(__dirname, "../public/app.js"), "utf8");
+  const questionManager = appJs.match(/function renderQuestionManager\(snapshot\) \{[\s\S]*?\n\}/)?.[0] || "";
+
+  assert.match(questionManager, /storageBlocked/);
+  assert.match(questionManager, /snapshot\.storage\?\.durable === false/);
+  assert.match(questionManager, /Question import is disabled until Upstash Redis is connected/);
+  assert.match(questionManager, /storageBlocked \|\| snapshot\.status === "active"/);
+});
+
 test("session professor passcode is hidden until toggled", () => {
   const appJs = fs.readFileSync(path.join(__dirname, "../public/app.js"), "utf8");
 

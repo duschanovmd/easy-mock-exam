@@ -108,6 +108,14 @@ function sendMissingStorage(res) {
   });
 }
 
+function requiresDurableProfessorStorage(req, url) {
+  return (
+    req.method !== "GET" &&
+    url.pathname.startsWith("/api/professor") &&
+    url.pathname !== "/api/professor/import-preview"
+  );
+}
+
 function endExam(exam, reason = "manual") {
   if (exam.status === "ended") {
     return exam;
@@ -609,6 +617,10 @@ async function handleApi(req, res, url) {
 
   if (url.pathname.startsWith("/api/professor")) {
     requireProfessor(req);
+    if (isMissingVercelStorage() && requiresDurableProfessorStorage(req, url)) {
+      sendMissingStorage(res);
+      return;
+    }
   }
 
   if (req.method === "GET" && url.pathname === "/api/professor/state") {

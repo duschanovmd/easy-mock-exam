@@ -598,6 +598,7 @@ function renderProfessorHeader(snapshot) {
 }
 
 function renderControls(snapshot) {
+  const storageBlocked = snapshot.storage?.durable === false;
   const selectedChoiceCount = Number(snapshot.choiceCount) || 4;
   const answeredTotal = snapshot.participants.reduce((sum, student) => sum + (Number(student.answeredCount) || 0), 0);
   const possibleAnswers = Math.max(1, snapshot.participants.length * Math.max(1, snapshot.questionCount));
@@ -637,9 +638,9 @@ function renderControls(snapshot) {
         </div>
       </div>
       <div class="button-row" style="margin-top: 16px">
-        <button class="primary" type="button" data-action="start-exam" ${snapshot.status === "active" || snapshot.questionCount === 0 ? "disabled" : ""}>Start exam</button>
-        <button class="danger" type="button" data-action="end-exam" ${snapshot.status !== "active" ? "disabled" : ""}>End now</button>
-        <button class="secondary" type="button" data-action="reset-session">New session</button>
+        <button class="primary" type="button" data-action="start-exam" ${storageBlocked || snapshot.status === "active" || snapshot.questionCount === 0 ? "disabled" : ""}>Start exam</button>
+        <button class="danger" type="button" data-action="end-exam" ${storageBlocked || snapshot.status !== "active" ? "disabled" : ""}>End now</button>
+        <button class="secondary" type="button" data-action="reset-session" ${storageBlocked ? "disabled" : ""}>New session</button>
         <button class="secondary" type="button" data-action="download-results">Download results CSV</button>
       </div>
       <div class="control-list">
@@ -659,14 +660,14 @@ function renderControls(snapshot) {
               </button>
             </div>
           </div>
-          <button class="ghost" type="button" data-action="regenerate-passcode">Regenerate</button>
+          <button class="ghost" type="button" data-action="regenerate-passcode" ${storageBlocked ? "disabled" : ""}>Regenerate</button>
         </div>
         <div class="control-line">
           <div>
             <span class="field-label">Student explanations</span>
             <strong>${snapshot.showExplanations ? "Released after exam ends" : "Hidden from students"}</strong>
           </div>
-          <button class="ghost" type="button" data-action="toggle-explanations" data-next="${snapshot.showExplanations ? "false" : "true"}">
+          <button class="ghost" type="button" data-action="toggle-explanations" data-next="${snapshot.showExplanations ? "false" : "true"}" ${storageBlocked ? "disabled" : ""}>
             ${snapshot.showExplanations ? "Hide explanations" : "Release explanations"}
           </button>
         </div>
@@ -674,19 +675,19 @@ function renderControls(snapshot) {
       <form class="field-grid" style="margin-top: 18px" data-action="save-config">
         <label class="field">
           <span>Duration minutes</span>
-          <input name="durationMinutes" type="number" min="1" max="240" value="${snapshot.durationMinutes}" ${snapshot.status === "active" ? "disabled" : ""} />
+          <input name="durationMinutes" type="number" min="1" max="240" value="${snapshot.durationMinutes}" ${storageBlocked || snapshot.status === "active" ? "disabled" : ""} />
         </label>
         <label class="field">
           <span>Exam code</span>
-          <input name="sessionCode" maxlength="16" value="${escapeHtml(snapshot.sessionCode)}" ${snapshot.status === "active" ? "disabled" : ""} />
+          <input name="sessionCode" maxlength="16" value="${escapeHtml(snapshot.sessionCode)}" ${storageBlocked || snapshot.status === "active" ? "disabled" : ""} />
         </label>
         <label class="field">
           <span>Questions in template</span>
-          <input name="templateQuestionCount" type="number" min="1" max="200" value="${Number(snapshot.templateQuestionCount) || 20}" ${snapshot.status === "active" ? "disabled" : ""} />
+          <input name="templateQuestionCount" type="number" min="1" max="200" value="${Number(snapshot.templateQuestionCount) || 20}" ${storageBlocked || snapshot.status === "active" ? "disabled" : ""} />
         </label>
         <label class="field">
           <span>Choices per question</span>
-          <select name="choiceCount" ${snapshot.status === "active" ? "disabled" : ""}>
+          <select name="choiceCount" ${storageBlocked || snapshot.status === "active" ? "disabled" : ""}>
             ${[2, 3, 4, 5, 6]
               .map(
                 (count) => `<option value="${count}" ${count === selectedChoiceCount ? "selected" : ""}>${count} choices</option>`
@@ -695,7 +696,7 @@ function renderControls(snapshot) {
           </select>
         </label>
         <div class="field full button-row">
-          <button class="secondary" type="submit" ${snapshot.status === "active" ? "disabled" : ""}>Save settings</button>
+          <button class="secondary" type="submit" ${storageBlocked || snapshot.status === "active" ? "disabled" : ""}>Save settings</button>
         </div>
       </form>
       ${
@@ -713,7 +714,7 @@ function renderControls(snapshot) {
                     `
                   )
                   .join("")}
-                <button class="ghost" type="button" data-action="clear-ended-sessions" ${endedSessionCount === 0 ? "disabled" : ""}>Clear ended sessions</button>
+                <button class="ghost" type="button" data-action="clear-ended-sessions" ${storageBlocked || endedSessionCount === 0 ? "disabled" : ""}>Clear ended sessions</button>
               </div>
             </div>
           `
@@ -799,6 +800,8 @@ function renderImportPreview() {
 function renderQuestionManager(snapshot) {
   const keys = answerKeys(snapshot.choiceCount);
   const placeholder = `question,${keys.join(",")},correctAnswer,explanation`;
+  const storageBlocked = snapshot.storage?.durable === false;
+  const importDisabled = storageBlocked || snapshot.status === "active";
   return `
     <div class="panel">
       <div class="panel-header">
@@ -808,13 +811,18 @@ function renderQuestionManager(snapshot) {
       <div class="import-box">
         <label class="field">
           <span>Paste JSON or CSV</span>
-          <textarea name="importText" data-import-text placeholder="${escapeHtml(placeholder)}">${escapeHtml(professorStore.pendingImportText)}</textarea>
+          <textarea name="importText" data-import-text placeholder="${escapeHtml(placeholder)}" ${storageBlocked ? "disabled" : ""}>${escapeHtml(professorStore.pendingImportText)}</textarea>
         </label>
+        ${
+          storageBlocked
+            ? `<div class="message error">Question import is disabled until Upstash Redis is connected to this Vercel project.</div>`
+            : ""
+        }
         <div class="button-row">
-          <button class="secondary" type="button" data-action="preview-import" ${snapshot.status === "active" ? "disabled" : ""}>Preview import</button>
-          <button class="primary" type="button" data-action="import-previewed" ${snapshot.status === "active" || !professorStore.importPreview?.valid ? "disabled" : ""}>Import previewed</button>
-          <button class="danger" type="button" data-action="clear-questions" ${snapshot.status === "active" || snapshot.questionCount === 0 ? "disabled" : ""}>Delete all questions</button>
-          <button class="secondary" type="button" data-action="choose-import-file" ${snapshot.status === "active" ? "disabled" : ""}>Upload and import file</button>
+          <button class="secondary" type="button" data-action="preview-import" ${importDisabled ? "disabled" : ""}>Preview import</button>
+          <button class="primary" type="button" data-action="import-previewed" ${importDisabled || !professorStore.importPreview?.valid ? "disabled" : ""}>Import previewed</button>
+          <button class="danger" type="button" data-action="clear-questions" ${importDisabled || snapshot.questionCount === 0 ? "disabled" : ""}>Delete all questions</button>
+          <button class="secondary" type="button" data-action="choose-import-file" ${importDisabled ? "disabled" : ""}>Upload and import file</button>
           <a class="link-button ghost" href="${escapeHtml(templateHref("csv", snapshot))}" download>Download CSV template</a>
           <a class="link-button ghost" href="${escapeHtml(templateHref("json", snapshot))}" download>Download JSON template</a>
         </div>
@@ -833,7 +841,7 @@ function renderQuestionManager(snapshot) {
               <article class="question-item">
                 <div class="question-item-top">
                   <p><strong>${index + 1}.</strong> ${escapeHtml(question.text)}</p>
-                  <button class="ghost" type="button" data-action="remove-question" data-index="${index}" ${snapshot.status === "active" ? "disabled" : ""}>Remove</button>
+                  <button class="ghost" type="button" data-action="remove-question" data-index="${index}" ${importDisabled ? "disabled" : ""}>Remove</button>
                 </div>
                 <span class="answer-key">Correct: ${escapeHtml(question.correctAnswer)}</span>
               </article>

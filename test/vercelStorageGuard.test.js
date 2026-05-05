@@ -117,3 +117,35 @@ test("Vercel without Redis tells students storage is missing instead of blaming 
     restore();
   }
 });
+
+test("Vercel without Redis blocks importing professor questions", async () => {
+  const { handleRequest, restore } = loadVercelServerWithoutRedis();
+  try {
+    const response = await requestJson(handleRequest, {
+      method: "POST",
+      url: "/api/professor/questions",
+      headers: {
+        "content-type": "application/json",
+        "x-professor-passcode": "CAU-PROF",
+      },
+      body: {
+        questions: [
+          {
+            question: "Which ion is the main extracellular cation?",
+            A: "Sodium",
+            B: "Potassium",
+            C: "Calcium",
+            D: "Magnesium",
+            correctAnswer: "A",
+            explanation: "Sodium is the main extracellular cation.",
+          },
+        ],
+      },
+    });
+
+    assert.equal(response.statusCode, 503);
+    assert.match(response.body.error, /Upstash Redis/);
+  } finally {
+    restore();
+  }
+});
