@@ -178,6 +178,16 @@ function connectProfessorStream() {
   startPolling(() => loadProfessorState({ connect: false, silent: true }));
 }
 
+function shouldDeferPollingRender() {
+  const activeElement = document.activeElement;
+  return (
+    route() === "professor" &&
+    activeElement &&
+    app.contains(activeElement) &&
+    activeElement.matches("input, textarea, select")
+  );
+}
+
 async function loadPublicState(options = {}) {
   try {
     const params = new URLSearchParams();
@@ -202,6 +212,10 @@ async function loadPublicState(options = {}) {
     if (!options.silent || !studentStore.snapshot) {
       studentStore.error = error.message;
     }
+  }
+
+  if (options.silent && shouldDeferPollingRender()) {
+    return;
   }
 
   if (options.render !== false) {
@@ -243,6 +257,10 @@ async function loadProfessorState(options = {}) {
       sessionStorage.removeItem("cau.professorAuthenticated");
       localStorage.removeItem("cau.professorPasscode");
     }
+  }
+
+  if (options.silent && shouldDeferPollingRender()) {
+    return;
   }
 
   if (options.render !== false) {

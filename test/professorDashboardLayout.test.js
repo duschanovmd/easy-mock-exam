@@ -52,6 +52,16 @@ test("professor import controls are disabled when Vercel storage is missing", ()
   assert.match(questionManager, /storageBlocked \|\| snapshot\.status === "active"/);
 });
 
+test("silent professor polling does not re-render while editing a form field", () => {
+  const appJs = fs.readFileSync(path.join(__dirname, "../public/app.js"), "utf8");
+  const loadProfessorState = appJs.match(/async function loadProfessorState\(options = \{\}\) \{[\s\S]*?\n\}/)?.[0] || "";
+
+  assert.match(appJs, /function shouldDeferPollingRender/);
+  assert.match(appJs, /activeElement\.matches\("input, textarea, select"\)/);
+  assert.match(loadProfessorState, /options\.silent && shouldDeferPollingRender\(\)/);
+  assert.match(loadProfessorState, /return;/);
+});
+
 test("session professor passcode is hidden until toggled", () => {
   const appJs = fs.readFileSync(path.join(__dirname, "../public/app.js"), "utf8");
 
