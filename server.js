@@ -49,6 +49,8 @@ const DATA_DIR =
   (process.env.VERCEL ? path.join("/tmp", "cau-mock-exam-portal") : path.join(ROOT, "data"));
 const DATA_FILE = process.env.DATA_FILE || path.join(DATA_DIR, "exam-state.json");
 const MAX_BODY_BYTES = 1_000_000;
+const MISSING_STORAGE_ERROR =
+  "Vercel persistent storage is not connected. Add Upstash Redis to this Vercel project before starting classroom exams.";
 
 const storage = createStateStorage({ dataDir: DATA_DIR, dataFile: DATA_FILE });
 const clients = new Set();
@@ -93,6 +95,17 @@ function storageSnapshot() {
     mode: storage.mode,
     durable: Boolean(storage.durable),
   };
+}
+
+function isMissingVercelStorage() {
+  return Boolean(process.env.VERCEL) && !storage.durable;
+}
+
+function sendMissingStorage(res) {
+  sendJson(res, 503, {
+    error: MISSING_STORAGE_ERROR,
+    storage: storageSnapshot(),
+  });
 }
 
 function endExam(exam, reason = "manual") {
@@ -199,6 +212,7 @@ async function studentSnapshot(exam, studentId) {
     durationMinutes: freshExam.durationMinutes,
     templateQuestionCount: freshExam.templateQuestionCount,
     choiceCount: freshExam.choiceCount,
+    storage: storageSnapshot(),
     startedAt: freshExam.startedAt,
     endsAt: freshExam.endsAt,
     endedAt: freshExam.endedAt,
@@ -435,6 +449,11 @@ async function handleApi(req, res, url) {
 
     if (!nickname || nickname.length < 2) {
       sendJson(res, 400, { error: "Please enter a nickname with at least 2 characters." });
+      return;
+    }
+
+    if (isMissingVercelStorage()) {
+      sendMissingStorage(res);
       return;
     }
 
@@ -790,6 +809,11 @@ async function handleApi(req, res, url) {
     const exam = getSession(state, professorSessionCode(req, url));
     if (!exam) {
       sendJson(res, 404, { error: "Exam session was not found." });
+      return;
+    }
+
+    if (isMissingVercelStorage()) {
+      sendMissingStorage(res);
       return;
     }
 

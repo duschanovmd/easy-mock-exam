@@ -311,6 +311,11 @@ function renderStudentJoin() {
         <div class="button-row" style="margin-top: 18px">
           <button class="primary" type="submit">Join waiting room</button>
         </div>
+        ${
+          snapshot?.storage?.durable === false
+            ? `<div class="message error">This Vercel deployment is missing persistent storage. Ask the professor to connect Upstash Redis before students join.</div>`
+            : ""
+        }
         ${messageHtml(studentStore.error, "error")}
       </form>
 
