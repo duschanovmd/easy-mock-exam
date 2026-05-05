@@ -94,8 +94,11 @@ async function request(path, options = {}) {
   };
 
   if (options.professor) {
+    const sessionCode = Object.prototype.hasOwnProperty.call(options, "sessionCode")
+      ? options.sessionCode
+      : professorStore.sessionCode || professorStore.snapshot?.sessionCode || "";
     headers["x-professor-passcode"] = professorStore.passcode;
-    headers["x-session-code"] = options.sessionCode || professorStore.sessionCode || professorStore.snapshot?.sessionCode || "";
+    headers["x-session-code"] = sessionCode || "";
   }
 
   if (options.sessionCode && !options.professor) {
@@ -213,7 +216,10 @@ async function loadProfessorState(options = {}) {
     if (professorStore.sessionCode) {
       params.set("sessionCode", professorStore.sessionCode);
     }
-    professorStore.snapshot = await request(`/api/professor/state?${params.toString()}`, { professor: true });
+    professorStore.snapshot = await request(`/api/professor/state?${params.toString()}`, {
+      professor: true,
+      sessionCode: professorStore.sessionCode,
+    });
     professorStore.sessionCode = professorStore.snapshot.sessionCode;
     professorStore.error = "";
     localStorage.setItem("cau.professorPasscode", professorStore.passcode);
@@ -1446,11 +1452,9 @@ app.addEventListener("submit", async (event) => {
   if (action === "professor-login") {
     professorStore.passcode = form.passcode.value;
     professorStore.sessionCode = form.sessionCode.value.trim().toUpperCase();
-    await professorAction(
-      "/api/professor/reset",
-      { clearQuestions: true },
-      { message: "Fresh room created. Upload questions to begin." }
-    );
+    professorStore.authenticated = true;
+    sessionStorage.setItem("cau.professorAuthenticated", "true");
+    await loadProfessorState();
   }
 
   if (action === "save-config") {

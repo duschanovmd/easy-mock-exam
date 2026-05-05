@@ -25,6 +25,40 @@ test("file state storage round-trips normalized exam state", async () => {
   assert.equal(getSession(loaded, "CAU-7777").durationMinutes, 33);
 });
 
+test("file state storage saves the first generated session immediately", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "cau-file-storage-initial-"));
+  const dataFile = path.join(tempDir, "state.json");
+  const storage = createFileStateStorage({
+    dataDir: tempDir,
+    dataFile,
+  });
+
+  const firstLoad = await storage.load();
+  const secondLoad = await storage.load();
+
+  assert.equal(fs.existsSync(dataFile), true);
+  assert.equal(secondLoad.activeSessionCode, firstLoad.activeSessionCode);
+});
+
+test("redis state storage saves the first generated session immediately", async () => {
+  const values = new Map();
+  const redis = {
+    async get(key) {
+      return values.get(key);
+    },
+    async set(key, value) {
+      values.set(key, value);
+    },
+  };
+  const storage = createRedisStateStorage({ redis, key: "initial-exam-state-test" });
+
+  const firstLoad = await storage.load();
+  const secondLoad = await storage.load();
+
+  assert.equal(secondLoad.activeSessionCode, firstLoad.activeSessionCode);
+  assert.equal(values.has("initial-exam-state-test"), true);
+});
+
 test("redis state storage stores the shared Vercel state under one key", async () => {
   const values = new Map();
   const redis = {

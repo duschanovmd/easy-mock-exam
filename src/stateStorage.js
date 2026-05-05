@@ -17,6 +17,11 @@ function parseStoredState(value) {
   return createStore(value);
 }
 
+function saveStoreToFile(dataDir, dataFile, store) {
+  fs.mkdirSync(dataDir || path.dirname(dataFile), { recursive: true });
+  fs.writeFileSync(dataFile, JSON.stringify(store, null, 2));
+}
+
 function createFileStateStorage({ dataDir, dataFile }) {
   return {
     mode: process.env.VERCEL ? "vercel-tmp-file" : "local-file",
@@ -24,7 +29,9 @@ function createFileStateStorage({ dataDir, dataFile }) {
     async load() {
       try {
         if (!fs.existsSync(dataFile)) {
-          return createStore();
+          const freshStore = createStore();
+          saveStoreToFile(dataDir, dataFile, freshStore);
+          return freshStore;
         }
 
         return parseStoredState(fs.readFileSync(dataFile, "utf8"));
@@ -34,8 +41,7 @@ function createFileStateStorage({ dataDir, dataFile }) {
       }
     },
     async save(store) {
-      fs.mkdirSync(dataDir || path.dirname(dataFile), { recursive: true });
-      fs.writeFileSync(dataFile, JSON.stringify(store, null, 2));
+      saveStoreToFile(dataDir, dataFile, store);
     },
   };
 }
@@ -46,7 +52,14 @@ function createRedisStateStorage({ redis, key = process.env.STATE_KEY || DEFAULT
     durable: true,
     async load() {
       try {
-        return parseStoredState(await redis.get(key));
+        const value = await redis.get(key);
+        if (!value) {
+          const freshStore = createStore();
+          await redis.set(key, JSON.stringify(freshStore));
+          return freshStore;
+        }
+
+        return parseStoredState(value);
       } catch (error) {
         console.error("Could not load exam state from Redis, starting fresh:", error.message);
         return createStore();
